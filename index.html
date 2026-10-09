@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nurse Doctor Dashboard</title>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f6f7f5;color:#17201d}
+    main{max-width:880px;margin:0 auto;padding:40px 20px}
+    h1{margin:0 0 8px;font-size:28px}
+    p{margin:0 0 24px;color:#53605b}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    a{display:block;padding:16px;border:1px solid #dfe5e1;border-radius:8px;background:white;color:#17201d;text-decoration:none;font-weight:700}
+    a span{display:block;margin-top:4px;color:#6a7671;font-size:13px;font-weight:500}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Nurse Doctor Dashboard</h1>
+    <p>Combined nurse voice, doctor voice, admin, master admin, and dashboard entry points.</p>
+    <div class="grid">
+      <a href="./dashboard.html">Dashboard<span>Shared operational dashboard</span></a>
+      <a href="./doctor-user.html">Doctor User<span>Doctor voice notes</span></a>
+      <a href="./nurse-user.html">Nurse User<span>Nurse voice notes</span></a>
+      <a href="./admin-doctor.html">Admin Doctor<span>Doctor admin/worklist</span></a>
+      <a href="./admin-nurse.html">Admin Nurse<span>Nurse admin/worklist</span></a>
+      <a href="./master-admin-doctor.html">Master Admin Doctor<span>Doctor group mapping</span></a>
+      <a href="./master-admin-nurse.html">Master Admin Nurse<span>Nurse group mapping</span></a>
+    </div>
+  </main>
+</body>
+</html>

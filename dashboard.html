@@ -1,0 +1,460 @@
+<title>ED Tablet View</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..900&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: fixed header with census, three tabs (Triage · ER areas · Referrals), a bottom sheet for details. Built for a 10" tablet, works on phones. Deliberately light (bedside/office tablet). */
+:root{
+  color-scheme: light;
+  --bg:#F4F5F8; --card:#FFFFFF; --ink:#141A2E; --ink2:#4B5369; --ink3:#7C8397; --line:#DDE0E7; --soft:#EEF0F4;
+  --p1:#C3122F; --p1s:#FCE8EB; --p2:#A85400; --p2b:#E99A1C; --p2s:#FEF2DA; --p3:#0D7A49; --p3s:#E1F4EA;
+  --info:#1B60C4; --infos:#E5EEFB; --accent:#1B60C4;
+  --head:'Archivo','Arial Narrow',Arial,sans-serif; --body:'IBM Plex Sans','Segoe UI',Arial,sans-serif; --mono:'IBM Plex Mono',Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.35;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+button:focus-visible,.card:focus-visible{outline:3px solid var(--info);outline-offset:2px}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--card);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:14px;padding:10px 16px}
+.brand{font-family:var(--head);font-weight:900;font-size:21px;letter-spacing:-.01em;font-stretch:85%;white-space:nowrap}
+.brand span{color:var(--ink3);font-weight:600;font-size:13px;letter-spacing:.06em;margin-left:6px;font-stretch:100%}
+.census{display:flex;gap:6px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.census::-webkit-scrollbar{display:none}
+.kp{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:64px;padding:4px 8px;border-radius:8px;background:var(--soft)}
+.kp b{font-family:var(--head);font-weight:900;font-size:22px;line-height:1}
+.kp span{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);margin-top:2px;white-space:nowrap}
+.kp.r b{color:var(--p1)}.kp.a b{color:var(--p2)}.kp.g b{color:var(--p3)}.kp.i b{color:var(--info)}
+.clock{text-align:right;white-space:nowrap}
+.clock b{font-family:var(--mono);font-size:20px;font-weight:600;display:block}
+.clock small{font-size:11px;color:var(--p3);display:inline-flex;align-items:center;gap:5px}
+.clock small::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--p3)}
+.tabs{display:flex;gap:4px;padding:0 12px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab,.demo-btn{flex:none}
+.tab{appearance:none;border:0;background:none;padding:10px 16px 11px;font-family:var(--head);font-weight:800;font-size:15px;color:var(--ink3);border-bottom:3px solid transparent;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:44px}
+.tab .n{font-family:var(--body);font-size:12px;font-weight:700;background:var(--soft);color:var(--ink2);border-radius:10px;padding:1px 8px}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.tab[aria-selected="true"] .n{background:var(--ink);color:#fff}
+.demo-btn{margin-left:auto;align-self:center;appearance:none;border:1px dashed var(--ink3);background:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer;min-height:36px}
+main{padding:14px 16px 40px;padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+.sectitle{font-family:var(--head);font-weight:800;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);margin:6px 0 10px;display:flex;align-items:center;gap:10px}
+.sectitle .c{font-family:var(--body);letter-spacing:0;font-size:12px;background:var(--soft);border-radius:10px;padding:1px 8px;color:var(--ink2)}
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:10px;padding:16px;color:var(--ink3);font-size:14px}
+/* cards */
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer;display:flex;flex-direction:column;gap:6px;text-align:left;width:100%;appearance:none;min-width:0}
+.card:active{transform:scale(.995)}
+.row{display:flex;align-items:baseline;gap:8px;min-width:0}
+.nm{font-weight:700;font-size:15.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{color:var(--ink2);font-size:13px;white-space:nowrap}
+.card>.meta{white-space:normal}
+.uh{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--ink2);white-space:nowrap}
+.dx{font-weight:600;font-size:14px}
+.time{margin-left:auto;font-family:var(--mono);font-weight:600;font-size:15px;white-space:nowrap}
+.time.amb{color:var(--p2)}.time.red{color:var(--p1)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:5px;background:var(--soft);color:var(--ink2);white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.chip.red{background:var(--p1s);color:var(--p1)}.chip.amb{background:var(--p2s);color:var(--p2)}.chip.grn{background:var(--p3s);color:var(--p3)}.chip.blu{background:var(--infos);color:var(--info)}
+.pri{font-family:var(--head);font-weight:900;font-size:12px;padding:2px 7px;border-radius:5px;color:#fff;letter-spacing:.04em;white-space:nowrap}
+.pri.P1{background:var(--p1)}.pri.P2{background:var(--p2b);color:#3A2200}.pri.P3{background:var(--p3)}
+.bed{font-family:var(--head);font-weight:900;font-size:20px;line-height:1;min-width:30px}
+.status{font-size:12px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em}
+/* triage */
+.tri-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:16px;align-items:start}
+.list{display:flex;flex-direction:column;gap:8px}
+.wait .card{border-left:5px solid var(--line)}
+.wait .card.amb{border-left-color:var(--p2b)}.wait .card.red{border-left-color:var(--p1);background:#FFF9FA}
+.vit{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+.vit div{background:var(--soft);border-radius:6px;padding:4px 6px;font-size:11px;color:var(--ink3);line-height:1.2}
+.vit div b{display:block;font-family:var(--mono);font-size:13.5px;color:var(--ink);font-weight:600}
+.vit div.flag{background:var(--p1s)}.vit div.flag b{color:var(--p1)}
+.tri .card{border-left:5px solid var(--ink3)}
+.tri .card.P1{border-left-color:var(--p1)}.tri .card.P2{border-left-color:var(--p2b)}.tri .card.P3{border-left-color:var(--p3)}
+/* areas */
+.areas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
+.area{background:var(--soft);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;border-top:5px solid}
+.area.P1{border-top-color:var(--p1)}.area.P2{border-top-color:var(--p2b)}.area.P3{border-top-color:var(--p3)}
+.area h2{margin:0;font-family:var(--head);font-weight:900;font-size:19px;display:flex;align-items:baseline;gap:8px}
+.area h2 small{font-family:var(--body);font-weight:600;font-size:13px;color:var(--ink2)}
+.area.P1 h2{color:var(--p1)}.area.P2 h2{color:var(--p2)}.area.P3 h2{color:var(--p3)}
+.free{border:1.5px dashed var(--line);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px;color:var(--ink3);font-size:13px;background:var(--card)}
+.free .bed{color:var(--ink3);font-size:17px}
+.free.clean{background:repeating-linear-gradient(135deg,#fff 0 8px,#F2F3F6 8px 16px)}
+.free.res{border-color:#B9CFEE;background:var(--infos);color:var(--info)}
+/* referrals */
+.ref{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:start}
+.stage{display:flex;flex-direction:column;gap:8px}
+.stage h3{margin:0;font-family:var(--head);font-weight:800;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--ink);padding-bottom:6px}
+.stage h3 .c{font-family:var(--body);letter-spacing:0;font-size:12px;background:var(--card);border-radius:10px;padding:1px 8px}
+.refcard{border-left:5px solid var(--info)}
+.refcard .from{font-size:13px;color:var(--ink2)}
+.closed{margin-top:16px}
+.closed summary{cursor:pointer;font-weight:600;color:var(--ink2);font-size:14px;min-height:36px;display:flex;align-items:center}
+/* flags & pathways */
+.flags{display:flex;flex-wrap:wrap;gap:4px}
+.flag{font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px;border:1.5px solid;white-space:nowrap;letter-spacing:.02em}
+.flag.allergy{color:var(--p1);border-color:var(--p1);background:#fff}
+.flag.mlc{color:#fff;background:#3A3F52;border-color:#3A3F52}
+.flag.iso{color:#6A2C91;border-color:#6A2C91;background:#F5EEFA}
+.flag.fall{color:var(--p2);border-color:var(--p2b);background:var(--p2s)}
+.flag.dnr{color:#fff;background:var(--ink);border-color:var(--ink)}
+.path{display:flex;flex-wrap:wrap;gap:4px;align-items:center;background:#F4EEFA;border-radius:6px;padding:4px 6px}
+.path .pn{font-family:var(--head);font-weight:900;font-size:11px;letter-spacing:.08em;color:#5B2A86;margin-right:2px}
+.path .ps{font-size:11.5px;font-weight:600;padding:1px 6px;border-radius:4px;background:#fff;color:var(--ink2);white-space:nowrap}
+.path .ps.ok{color:var(--p3)}.path .ps.amb{color:var(--p2);background:var(--p2s)}.path .ps.red{color:#fff;background:var(--p1)}
+/* going out */
+.outgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
+.outcard{border-left:5px solid var(--ink3)}
+.outcard.adm{border-left-color:var(--p2b)}.outcard.trf{border-left-color:#6A2C91}.outcard.home{border-left-color:var(--p3)}
+.bigsec{font-family:var(--head);font-weight:900;font-size:20px;margin:4px 0 10px;display:flex;align-items:baseline;gap:10px}
+.bigsec small{font-family:var(--body);font-weight:600;font-size:13px;color:var(--ink2)}
+@media (max-width:980px){.outgrid{grid-template-columns:minmax(0,1fr)}}
+/* priorities */
+.plist{display:flex;flex-direction:column;gap:8px;max-width:980px}
+.pitem{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:12px;align-items:center;border-left:5px solid var(--p2b)}
+.pitem.c{border-left-color:var(--p1);background:#FFF9FA}
+.pitem .sev{font-family:var(--head);font-weight:900;font-size:11px;letter-spacing:.08em;padding:3px 7px;border-radius:5px;text-align:center}
+.pitem.c .sev{background:var(--p1);color:#fff}.pitem.w .sev{background:var(--p2b);color:#3A2200}.pitem.r .sev{background:var(--info);color:#fff}
+.pitem.r{border-left-color:var(--info)}
+.pitem .what{font-weight:700;font-size:15px}
+.pitem .who{font-size:13px;color:var(--ink2);margin-top:2px}
+.pitem .el{text-align:right}
+.pitem .el b{font-family:var(--mono);font-size:16px;display:block}
+.pitem.c .el b{color:var(--p1)}
+.pitem .el small{font-size:12px;color:var(--ink3)}
+.upd{font-size:12px;color:var(--ink3)}
+.card.stale{background:#F7F7F9;border-style:dashed}
+.card.stale .upd{color:var(--p2);font-weight:700}
+.copybtn{appearance:none;border:0;background:var(--ink);color:#fff;border-radius:10px;padding:12px 16px;font-weight:700;font-size:15px;cursor:pointer;min-height:48px;margin-top:16px;width:100%}
+.copied{background:var(--p3)}
+.emrtext{width:100%;min-height:180px;margin-top:10px;font-family:var(--mono);font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:10px}
+@media (max-width:760px){.pitem{grid-template-columns:minmax(0,1fr) auto}.pitem .sev{grid-column:1 / -1;justify-self:start}}
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(20,26,46,.35);z-index:20}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--card);border-radius:16px 16px 0 0;max-height:82vh;overflow:auto;padding:16px 20px calc(24px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 40px rgba(20,26,46,.2);max-width:820px;margin:0 auto}
+.sheet .grab{width:44px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px}
+.sheet h2{margin:0;font-family:var(--head);font-weight:900;font-size:24px}
+.sheet .sub{color:var(--ink2);margin-top:2px}
+.close{position:absolute;top:12px;right:14px;appearance:none;border:0;background:var(--soft);border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 14px;margin:14px 0;font-size:14.5px}
+.kv dt{color:var(--ink3)}.kv dd{margin:0;font-weight:600}
+.note{background:var(--soft);border-radius:10px;padding:12px 14px;font-size:14.5px;line-height:1.5}
+.note .lbl{font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--ink3);margin-bottom:4px}
+.tl{list-style:none;margin:14px 0 0;padding:0 0 0 18px;border-left:2px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.tl li{position:relative;font-size:14.5px}
+.tl li::before{content:"";position:absolute;left:-24px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--card);border:2px solid var(--ink3)}
+.tl li.done::before{background:var(--p3);border-color:var(--p3)}
+.tl li.pend::before{border-color:var(--p2b)}
+.tl li b{font-family:var(--mono);font-size:13px;margin-right:8px}
+.tl li small{color:var(--ink3);margin-left:6px}
+/* demo panel */
+.demo{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:15;background:var(--ink);color:#fff;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 10px 30px rgba(20,26,46,.3);width:230px}
+.demo[hidden]{display:none}
+.demo .t{font-size:11px;font-weight:700;letter-spacing:.14em;color:#AEB4C4}
+.demo button{appearance:none;border:0;border-radius:8px;padding:10px 12px;background:#2C3554;color:#fff;font-weight:600;font-size:14px;text-align:left;cursor:pointer;min-height:44px}
+.demo button:active{background:#3A4670}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:30}
+@media (max-width:980px){
+  .tri-grid{grid-template-columns:minmax(0,1fr)}
+  .ref{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  .areas{grid-template-columns:minmax(0,1fr)}
+  .ref{grid-template-columns:minmax(0,1fr)}
+  .bar{flex-wrap:wrap}
+  .census{order:3;flex-basis:100%}
+  .vit{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .kv{grid-template-columns:110px 1fr}
+  .tab{padding:10px 10px 11px;font-size:14px}
+  .row{flex-wrap:wrap;row-gap:2px}
+  .nm{white-space:normal}
+  .demo-btn{padding:6px 8px;font-size:12px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="bar">
+    <div class="brand">ED Patients<span>EMERGENCY DEPT</span></div>
+    <div class="census" id="census" aria-label="ER census"></div>
+    <div class="clock"><b id="clock">--:--</b><small id="fresh">Live</small></div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" id="t-triage" aria-selected="true" data-tab="triage">Triage <span class="n" id="n-triage">0</span></button>
+    <button class="tab" role="tab" id="t-areas" aria-selected="false" data-tab="areas">ER areas <span class="n" id="n-areas">0</span></button>
+    <button class="tab" role="tab" id="t-ref" aria-selected="false" data-tab="ref">In &amp; Out <span class="n" id="n-ref">0</span></button>
+    <button class="tab" role="tab" id="t-prio" aria-selected="false" data-tab="prio">Priorities <span class="n" id="n-prio">0</span></button>
+    <button class="demo-btn" id="demoToggle" aria-expanded="false">Demo controls</button>
+  </nav>
+</header>
+<main id="main"></main>
+<div class="demo" id="demo" hidden>
+  <div class="t">DEMO · SAMPLE DATA</div>
+  <button id="d-arrive">+ Walk-in arrival</button>
+  <button id="d-triage">Triage next patient</button>
+  <button id="d-ref">+ New referral</button>
+  <button id="d-adv">Move a referral forward</button>
+</div>
+<div id="sheetRoot"></div>
+
+<script>
+(function(){
+const NOW=()=>Date.now();
+const ago=m=>NOW()-m*60000;
+const fmtT=t=>{const d=new Date(t);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+const el=(s)=>{const d=document.createElement('template');d.innerHTML=s.trim();return d.content.firstChild};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function dur(t){const m=Math.max(0,Math.floor((NOW()-t)/60000));return m<60?m+'m':Math.floor(m/60)+':'+String(m%60).padStart(2,'0')}
+function mins(t){return Math.floor((NOW()-t)/60000)}
+
+/* ---------- sample data (invented) ---------- */
+const AREAS={P1:{label:'P1 · Critical',beds:['R1','R2','R3','4','5','6']},P2:{label:'P2 · Urgent',beds:['7','8','9','10','11','12','13','14','15','16']},P3:{label:'P3 · Stable',beds:['17','18','19','20','21','22','23','24']}};
+const bedState={'6':'res','16':'clean'};
+let tokenNo=16;
+const waiting=[
+ {tok:'T-14',age:55,sex:'M',c:'Chest pain, sweating',at:ago(12),how:'Walk-in'},
+ {tok:'T-15',age:24,sex:'F',c:'Fall, wrist pain',at:ago(7),how:'Walk-in'},
+ {tok:'T-16',age:8,sex:'M',c:'Fever, vomiting',at:ago(3),how:'With parents'},
+];
+const nurses=['Sr Reshmi','Sr Anju','Br Jithin'];
+// ER patients: area, bed, name, uhid, age, sex, dx, arrival(min ago), status, pending chips, vitals, triage note
+const pts=[
+ ['P1','R1','Mohanan K','4821-337',64,'M','Acute L MCA stroke',42,'Investigating',[['CTA in scan','blu'],['Labs pending','amb']],{bp:'176/98',hr:88,spo2:96,rr:18,gcs:13,grbs:142},'Sudden right-sided weakness and slurred speech, last known well 07:40. Wife brought him. Right arm drift, facial droop.','Neuro'],
+ ['P1','R2','Anil Joseph','5530-118',58,'M','Inferior STEMI',84,'Awaiting bed',[['Cath lab · CCU','blu']],{bp:'96/60',hr:52,spo2:95,rr:20,gcs:15,grbs:188},'Crushing chest pain 2 hours, sweating, vomited once. ECG at triage: ST elevation II, III, aVF.','Cardiology'],
+ ['P1','R3','Sanjay P','6012-904',31,'M','RTA · chest and pelvic injury',19,'Investigating',[['CT trauma · 12m late','red'],['Cross-match','amb']],{bp:'98/64',hr:122,spo2:93,rr:26,gcs:14,grbs:110},'Two-wheeler collision, thrown off. Pain chest and hip, breathless. Brought by ambulance.','Trauma'],
+ ['P1','4','Rosamma Thomas','3307-562',72,'F','Septic shock · ?urosepsis',232,'Awaiting bed',[['MICU bed requested','amb'],['Blood C/S not sent','red']],{bp:'82/50',hr:118,spo2:94,rr:24,gcs:14,grbs:96},'Fever 3 days, drowsy since morning, poor urine output. Diabetic on insulin.','Medicine'],
+ ['P1','5','Jose Varghese',  '7741-020',45,'M','Status epilepticus',55,'Assessing',[['CT brain ordered','amb']],{bp:'150/90',hr:110,spo2:92,rr:22,gcs:9,grbs:124},'Continuous seizures 15 minutes at home, known epileptic, missed doses.','Neuro'],
+ ['P2','7','Kishore M','2210-871',52,'M','Chest pain ?ACS',70,'Investigating',[['Trop 2nd at 15:10','amb']],{bp:'150/90',hr:98,spo2:97,rr:20,gcs:15,grbs:210},'Central chest pain on exertion since morning, settled at rest. Diabetic, smoker.','Cardiology'],
+ ['P2','8','Lekha S','9034-215',27,'F','Abdominal pain ?ectopic',125,'Investigating',[['USG · 40m late','red'],['β-hCG positive','grn']],{bp:'108/70',hr:104,spo2:99,rr:18,gcs:15,grbs:98},'Right lower abdominal pain 6 hours, last period 7 weeks ago, spotting.','Gynaecology'],
+ ['P2','9','Pankajam G','1189-640',81,'F','Fracture neck of femur L',252,'Awaiting bed',[['Ortho W4 · cleaning','amb']],{bp:'138/80',hr:92,spo2:96,rr:18,gcs:15,grbs:130},'Fell at home in bathroom, unable to stand, left leg shortened and rotated.','Orthopaedics'],
+ ['P2','10','Tom Raju','4420-097',19,'M','DKA',108,'Investigating',[['K⁺ hourly','amb']],{bp:'110/70',hr:118,spo2:98,rr:28,gcs:15,grbs:486},'Vomiting and abdominal pain 1 day, type 1 diabetic, missed insulin.','Medicine'],
+ ['P2','11','Gopinathan N','6675-330',38,'M','Head injury · GCS 15',35,'Investigating',[['CT brain · in transit','blu']],{bp:'130/84',hr:84,spo2:98,rr:16,gcs:15,grbs:112},'Fall from ladder about 2 m, brief loss of consciousness, headache.','Neurosurgery'],
+ ['P2','12','Varghese A','8102-461',66,'M','Vertigo ?posterior circulation',58,'Assessing',[['MRI not booked','red']],{bp:'164/92',hr:76,spo2:97,rr:16,gcs:15,grbs:160},'Sudden spinning and unsteadiness since morning, vomiting, unable to walk.','Neuro'],
+ ['P2','13','Baby K','3390-772',49,'M','Snake bite · 20WBCT',62,'Investigating',[['20WBCT repeat 15:00','amb']],{bp:'128/80',hr:90,spo2:98,rr:18,gcs:15,grbs:118},'Bitten on right foot in the field 1 hour ago, snake not seen, local swelling.','Medicine'],
+ ['P2','14','Kuriakose M','5521-308',70,'M','COPD exacerbation',200,'Awaiting decision',[['ABG reviewed','grn']],{bp:'146/86',hr:104,spo2:89,rr:26,gcs:15,grbs:150},'Breathless for 3 days, worse today, cough with sputum. Home nebuliser not helping.','Medicine'],
+ ['P2','15','Fathima H','7004-519',33,'F','Acute pyelonephritis',47,'Investigating',[['Urine C/S sent','amb'],['USG KUB','blu']],{bp:'118/76',hr:108,spo2:98,rr:20,gcs:15,grbs:104},'Fever with chills, right loin pain, burning urine for 2 days.','Medicine'],
+ ['P3','17','Ramesh T','4108-552',47,'M','Renal colic L',50,'Investigating',[['CT KUB','amb']],{bp:'150/92',hr:96,spo2:99,rr:18,gcs:15,grbs:110},'Severe left loin pain radiating to groin, came and went since night.','Urology'],
+ ['P3','18','Divya Nair','3021-776',29,'F','Migraine',65,'Ready to leave',[['Summary ready','grn']],{bp:'122/78',hr:80,spo2:99,rr:16,gcs:15,grbs:96},'Usual migraine, 8 hours, not settling with home tablets, vomiting.','Medicine'],
+ ['P3','19','Shibu Mathew','5502-991',41,'M','Gastroenteritis',168,'Awaiting decision',[['RFT not reviewed','amb']],{bp:'104/68',hr:102,spo2:99,rr:18,gcs:15,grbs:90},'Loose stools 10 times since yesterday, vomiting, feels weak.','Medicine'],
+ ['P3','20','Sunitha R','7395-044',56,'F','LRTI',122,'Ready to leave',[['Billing','amb']],{bp:'130/80',hr:92,spo2:95,rr:20,gcs:15,grbs:140},'Cough with fever 4 days, mild breathlessness.','Medicine'],
+ ['P3','21','Jibin George','8840-310',22,'M','Forearm laceration',41,'Assessing',[['Suturing','blu']],{bp:'126/78',hr:86,spo2:99,rr:16,gcs:15,grbs:100},'Cut on left forearm with glass at work, bleeding controlled with pressure.','Surgery'],
+ ['P3','22','Asha Jacob','1176-205',24,'F','Allergic urticaria',90,'Investigating',[['Observe till 15:00','blu']],{bp:'116/74',hr:94,spo2:99,rr:18,gcs:15,grbs:102},'Itchy rash all over body after eating prawns, no breathing difficulty.','Medicine'],
+ ['P3','23','Ammini P','6630-028',61,'F','Fever ?viral',34,'Assessing',[],{bp:'124/78',hr:98,spo2:97,rr:18,gcs:15,grbs:130},'Fever and body ache 2 days, no cough, no rash.','Medicine'],
+ ['P3','24','Prakash V','2049-650',39,'M','Back strain',104,'Ready to leave',[['Wheelchair','amb']],{bp:'128/82',hr:78,spo2:99,rr:16,gcs:15,grbs:98},'Back pain after lifting a heavy box at work, no leg weakness.','Orthopaedics'],
+].map((a,i)=>({area:a[0],bed:a[1],name:a[2],uhid:a[3],age:a[4],sex:a[5],dx:a[6],at:ago(a[7]),status:a[8],pend:a[9],v:a[10],note:a[11],dept:a[12],nurse:nurses[i%3],triT:ago(a[7]-4),triDur:3+(i%5)}));
+const UPD=[6,3,8,14,5,12,9,40,15,4,22,18,72,30,11,6,65,10,8,14,9,5];
+pts.forEach((p,i)=>{p.upd=ago(UPD[i]!=null?UPD[i]:10);p.drafts=(i===5||i===19)?1:0;p.emr=false});
+const FLAGS={'3307-562':[['allergy','Allergy: penicillin'],['fall','Fall risk']],'6012-904':[['mlc','MLC']],'7741-020':[['fall','Fall risk']],'1189-640':[['fall','Fall risk']],'6675-330':[['mlc','MLC']],'1176-205':[['allergy','Allergy: shellfish']],'6630-028':[['iso','Isolation']],'5521-308':[['dnr','DNR documented']],'5530-118':[['allergy','Allergy: iodinated contrast']]};
+// pathway steps: [label, minutes from door when done (null = not yet), target minutes]
+const PATHS={'4821-337':{type:'STROKE',steps:[['Door→CT',18,20],['Door→needle',null,60]]},'5530-118':{type:'STEMI',steps:[['Door→ECG',4,10],['Door→balloon',null,90]]},'3307-562':{type:'SEPSIS',steps:[['Lactate',20,60],['Antibiotic',35,60]]},'6012-904':{type:'TRAUMA',steps:[['Door→CT',null,30]]}};
+const OUT={'5530-118':{kind:'adm',dest:'Cath lab → CCU',decided:ago(14),bed:'CCU bed requested'},'3307-562':{kind:'adm',dest:'MICU',decided:ago(87),bed:'No bed · MICU full'},'1189-640':{kind:'adm',dest:'Ortho ward W4',decided:ago(112),bed:'W4-12 being cleaned'},
+ '5521-308':{kind:'trf',dest:'Govt Medical College, Ernakulam',decided:ago(50),bed:'Ambulance arranged · ETA 20 min',why:'Family request, insurance'},
+ '3021-776':{kind:'home',dest:'Home',decided:ago(25),bed:'Summary ready · medicines given'},'7395-044':{kind:'home',dest:'Home',decided:ago(70),bed:'Waiting for billing'},'2049-650':{kind:'home',dest:'Home',decided:ago(30),bed:'Waiting for wheelchair'}};
+pts.forEach(p=>{p.flags=FLAGS[p.uhid]||[];p.path=PATHS[p.uhid]||null;p.out=OUT[p.uhid]||null});
+pts.find(p=>p.uhid==='5521-308').status='Awaiting transfer';
+function flagHTML(p){return p.flags.length?`<div class="flags">${p.flags.map(f=>`<span class="flag ${f[0]}">${esc(f[1])}</span>`).join('')}</div>`:''}
+function pathState(p,st){const el=mins(p.at);if(st[1]!=null)return st[1]<=st[2]?'ok':'red';return el>st[2]?'red':el>=st[2]*0.75?'amb':''}
+function pathHTML(p){if(!p.path)return '';return `<div class="path"><span class="pn">${p.path.type}</span>${p.path.steps.map(st=>{const c=pathState(p,st);return `<span class="ps ${c}">${esc(st[0])} ${st[1]!=null?st[1]+' min'+(c==='ok'?' ✓':''):mins(p.at)+'/'+st[2]+' min'}</span>`}).join('')}</div>`}
+const reminders=[{text:'Call MICU about the bed for Rosamma Thomas',due:ago(-8),by:'ER in-charge (voice)'}];
+const referrals=[
+ {id:'R-121',name:'Unnikrishnan',age:44,sex:'M',from:'Perumbavoor CHC',reason:'Fall from height, ?spine injury',spec:'Neurosurgery',stage:'received',at:ago(3),eta:null,trans:'Not arranged',bed:false,doc:''},
+ {id:'R-120',name:'Shalini',age:29,sex:'F',from:'Angamaly maternity home',reason:'Postpartum haemorrhage',spec:'Gynaecology',stage:'awaiting',at:ago(9),eta:null,trans:'ALS ambulance ready',bed:false,doc:'Gynae on call paged'},
+ {id:'R-119',name:'Thomas Mathew',age:63,sex:'M',from:'Kalamassery hospital',reason:'NSTEMI, for angiogram',spec:'Cardiology',stage:'accepted',at:ago(30),eta:40,trans:'BLS ambulance',bed:false,doc:'Dr Thomas'},
+ {id:'R-118',name:'Sreedevi',age:52,sex:'F',from:'Aluva district hospital',reason:'Thunderclap headache ?SAH',spec:'Neuro',stage:'enroute',at:ago(45),eta:14,trans:'ALS ambulance',bed:true,bedNo:'P1 bed 6',doc:'Dr Nair'},
+ {id:'R-116',name:'Mohanan K',age:64,sex:'M',from:'Kothamangalam hospital',reason:'Acute stroke for thrombectomy',spec:'Neuro',stage:'arrived',at:ago(110),eta:null,trans:'ALS ambulance',bed:true,bedNo:'P1 bed R1',doc:'Dr Nair',uhid:'4821-337'},
+ {id:'R-117',name:'Kunjumol',age:70,sex:'F',from:'Muvattupuzha hospital',reason:'Respiratory failure',spec:'Medicine',stage:'declined',at:ago(200),eta:null,trans:'—',bed:false,doc:'No ICU bed · redirected'},
+];
+const STAGES=[['received','Received'],['awaiting','Awaiting acceptance'],['accepted','Accepted'],['enroute','On the way'],['arrived','Arrived today']];
+
+/* ---------- state ---------- */
+let tab='triage';
+try{const s=localStorage.getItem('edtab');if(s)tab=s}catch(e){}
+const main=document.getElementById('main');
+
+function vitChips(v){
+  const f={spo2:v.spo2<92,hr:v.hr>120||v.hr<50,gcs:v.gcs<13,rr:v.rr>24,bp:parseInt(v.bp)<90,grbs:v.grbs>300||v.grbs<70};
+  return `<div class="vit">
+   <div class="${f.bp?'flag':''}">BP<b>${v.bp}</b></div><div class="${f.hr?'flag':''}">HR<b>${v.hr}</b></div>
+   <div class="${f.spo2?'flag':''}">SpO₂<b>${v.spo2}%</b></div><div class="${f.rr?'flag':''}">RR<b>${v.rr}</b></div>
+   <div class="${f.gcs?'flag':''}">GCS<b>${v.gcs}</b></div><div class="${f.grbs?'flag':''}">GRBS<b>${v.grbs}</b></div></div>`;
+}
+function stayCls(t){const m=mins(t);return m>=240?'red':m>=180?'amb':''}
+
+function renderCensus(){
+  const c={P1:0,P2:0,P3:0};pts.forEach(p=>c[p.area]++);
+  const totalBeds=Object.values(AREAS).reduce((a,x)=>a+x.beds.length,0);
+  const occ=new Set(pts.map(p=>p.bed));const free=Object.values(AREAS).flatMap(a=>a.beds).filter(b=>!occ.has(b)&&!bedState[b]).length;
+  const exp=referrals.filter(r=>['accepted','enroute'].includes(r.stage)).length;
+  document.getElementById('census').innerHTML=
+   `<div class="kp"><b>${pts.length}</b><span>In ER</span></div><div class="kp r"><b>${c.P1}</b><span>P1</span></div><div class="kp a"><b>${c.P2}</b><span>P2</span></div><div class="kp g"><b>${c.P3}</b><span>P3</span></div>`+
+   `<div class="kp ${waiting.length?'a':''}"><b>${waiting.length}</b><span>Awaiting triage</span></div><div class="kp i"><b>${exp}</b><span>Expected</span></div><div class="kp a"><b>${pts.filter(p=>p.out&&p.out.kind!=='home').length}</b><span>Waiting to go out</span></div><div class="kp g"><b>${free}</b><span>Beds free</span></div>`;
+  document.getElementById('n-triage').textContent=waiting.length;
+  document.getElementById('n-areas').textContent=pts.length;
+  document.getElementById('n-prio').textContent=buildPrio().length;
+  document.getElementById('n-ref').textContent=referrals.filter(r=>!['arrived','declined','cancelled'].includes(r.stage)).length+pts.filter(p=>p.out).length;
+}
+
+function renderTriage(){
+  const recent=pts.filter(p=>mins(p.triT)<=120).sort((a,b)=>b.triT-a.triT);
+  const w=waiting.slice().sort((a,b)=>a.at-b.at).map((x,i)=>{const m=mins(x.at);const cls=m>=10?'red':m>=5?'amb':'';
+    return `<button class="card ${cls}" data-kind="wait" data-i="${waiting.indexOf(x)}"><div class="row"><span class="uh" style="font-size:14px;color:var(--ink)">${x.tok}</span><span class="meta">${x.age} ${x.sex} · ${esc(x.how)}</span><span class="time ${cls}">${m}m</span></div><div class="dx">${esc(x.c)}</div><div class="meta">Arrived ${fmtT(x.at)} · waiting for triage</div></button>`}).join('')||'<div class="empty">Nobody is waiting for triage.</div>';
+  const t=recent.map(p=>`<button class="card ${p.area}" data-kind="pt" data-u="${p.uhid}"><div class="row"><span class="pri ${p.area}">${p.area}</span><span class="nm">${esc(p.name)}</span><span class="uh">UHID ${p.uhid}</span><span class="meta">${p.age} ${p.sex}</span><span class="time">${fmtT(p.triT)}</span></div><div class="dx">${esc(p.dx)}</div>${flagHTML(p)}${vitChips(p.v)}<div class="meta">${esc(p.dept)} · ${esc(p.nurse)} · arrival to triage ${Math.max(1,Math.round((p.triT-p.at)/60000)+p.triDur)} min · now in ${p.area} bed ${p.bed}</div></button>`).join('')||'<div class="empty">No patients triaged in the last two hours.</div>';
+  main.innerHTML=`<div class="tri-grid"><section class="wait"><div class="sectitle">Waiting for triage <span class="c">${waiting.length}</span></div><div class="list">${w}</div></section><section class="tri"><div class="sectitle">Triaged · last 2 hours <span class="c">${recent.length}</span></div><div class="list">${t}</div></section></div>`;
+}
+
+function renderAreas(){
+  main.innerHTML='<div class="areas">'+Object.entries(AREAS).map(([k,a])=>{
+    const here=pts.filter(p=>p.area===k);
+    const cards=a.beds.map(b=>{const p=here.find(x=>x.bed===b);
+      if(!p){const st=bedState[b];
+        if(st==='res'){const r=referrals.find(x=>x.bedNo&&x.bedNo.endsWith(' '+b)&&x.stage!=='arrived');return `<div class="free res"><span class="bed">${b}</span>Reserved${r?' · '+esc(r.id)+' '+esc(r.name)+', ETA '+r.eta+' min':''}</div>`}
+        if(st==='clean')return `<div class="free clean"><span class="bed">${b}</span>Being cleaned</div>`;
+        return `<div class="free"><span class="bed">${b}</span>Free</div>`}
+      const sc=stayCls(p.at);const um=mins(p.upd);
+      return `<button class="card${um>=60?' stale':''}" data-kind="pt" data-u="${p.uhid}"><div class="row"><span class="bed">${p.bed}</span><span class="nm">${esc(p.name)}</span><span class="time ${sc}">${dur(p.at)}</span></div><div class="row"><span class="uh">UHID ${p.uhid}</span><span class="meta">${p.age} ${p.sex}</span></div>${flagHTML(p)}<div class="dx">${esc(p.dx)}</div>${pathHTML(p)}<div class="status">${esc(p.status)}</div><div class="upd">${um>=60?'No update for '+um+' min':'Updated '+um+' min ago'}${p.drafts?' · <span style="color:var(--p2);font-weight:700">'+p.drafts+' draft not confirmed</span>':''}${p.emr?' · <span style="color:var(--p3);font-weight:700">copied to EMR ✓</span>':''}</div>${p.pend.length?`<div class="chips">${p.pend.map(c=>`<span class="chip ${c[1]}">${esc(c[0])}</span>`).join('')}</div>`:''}</button>`}).join('');
+    return `<section class="area ${k}"><h2>${a.label}<small>${here.length} of ${a.beds.length} beds</small></h2>${cards}</section>`}).join('')+'</div>';
+}
+
+function refCard(r){
+  const chips=[];
+  if(r.stage==='accepted'||r.stage==='enroute')chips.push(r.eta!=null?[`ETA ${r.eta} min`,'blu']:['ETA not given','amb']);
+  if(['accepted','enroute'].includes(r.stage))chips.push(r.bed?[`Bed ready · ${r.bedNo}`,'grn']:['No bed yet','red']);
+  if(r.stage==='awaiting')chips.push([`Waiting ${mins(r.at)} min`,mins(r.at)>=15?'red':'amb']);
+  if(r.stage==='received')chips.push(['Details being taken','']);
+  if(r.stage==='arrived')chips.push([`Linked · UHID ${r.uhid||'—'}`,'grn']);
+  return `<button class="card refcard" data-kind="ref" data-id="${r.id}"><div class="row"><span class="uh" style="color:var(--info)">${r.id}</span><span class="nm">${esc(r.name)}</span><span class="meta">${r.age} ${r.sex}</span></div><div class="dx">${esc(r.reason)}</div><div class="from">${esc(r.from)} · ${esc(r.spec)}${r.doc?' · '+esc(r.doc):''}</div><div class="chips">${chips.map(c=>`<span class="chip ${c[1]}">${esc(c[0])}</span>`).join('')}</div></button>`;
+}
+function renderRef(){
+  const cols=STAGES.slice(0,4).map(([k,l])=>{const list=referrals.filter(r=>r.stage===k);return `<section class="stage"><h3>${l}<span class="c">${list.length}</span></h3>${list.map(refCard).join('')||'<div class="empty">None</div>'}</section>`}).join('');
+  const arr=referrals.filter(r=>r.stage==='arrived'),dec=referrals.filter(r=>['declined','cancelled'].includes(r.stage));
+  const outCard=p=>{const m=mins(p.out.decided);const sev=p.out.kind==='home'?(m>=60?'amb':''):(m>=120?'red':m>=60?'amb':'');
+    return `<button class="card outcard ${p.out.kind}" data-kind="pt" data-u="${p.uhid}"><div class="row"><span class="nm">${esc(p.name)}</span><span class="time ${sev}">${dur(p.out.decided)}</span></div><div class="row"><span class="uh">UHID ${p.uhid}</span><span class="meta">${p.age} ${p.sex} · ${p.area} bed ${p.bed}</span></div><div class="dx">→ ${esc(p.out.dest)}</div><div class="meta">${esc(p.dx)}${p.out.why?' · '+esc(p.out.why):''}</div><div class="chips"><span class="chip ${/no bed|waiting|clean|requested/i.test(p.out.bed)?(sev==='red'?'red':'amb'):'grn'}">${esc(p.out.bed)}</span><span class="chip">decided ${fmtT(p.out.decided)}</span></div></button>`};
+  const grp=(k,l)=>{const list=pts.filter(p=>p.out&&p.out.kind===k).sort((a,b)=>a.out.decided-b.out.decided);return `<section class="stage"><h3>${l}<span class="c">${list.length}</span></h3>${list.map(outCard).join('')||'<div class="empty">None</div>'}</section>`};
+  main.innerHTML=`<div class="bigsec">Coming in <small>referrals from other hospitals</small></div><div class="ref">${cols}</div>
+  <div class="bigsec" style="margin-top:22px">Going out <small>decision made, still in the ER · time since decision</small></div><div class="outgrid">${grp('adm','Admitted · waiting for bed')}${grp('trf','Transfer to other hospital')}${grp('home','Discharged · not yet left')}</div>
+  <div class="sectitle" style="margin-top:18px">Referrals arrived today <span class="c">${arr.length}</span></div><div class="ref">${arr.map(refCard).join('')||'<div class="empty">None yet today.</div>'}</div><details class="closed"><summary>Declined or cancelled today (${dec.length})</summary><div class="ref" style="margin-top:8px">${dec.map(r=>refCard(r).replace('refcard','refcard" style="border-left-color:var(--ink3);opacity:.75')).join('')}</div></details>`;
+}
+
+function ownerFor(t){t=t.toLowerCase();if(/usg|ct|mri|x-ray|scan/.test(t))return 'Radiology / Ops';if(/c\/s|sample|culture|k⁺/.test(t))return 'Nursing';if(/bed|ward|micu|ccu/.test(t))return 'Operations';return 'ER doctor'}
+function buildPrio(){
+  const it=[];
+  waiting.forEach((x,i)=>{const m=mins(x.at);if(m>=5)it.push({s:m>=10?'c':'w',what:'Waiting for triage',who:`${x.tok} · ${x.age} ${x.sex} · ${x.c}`,m,owner:'Triage nurse',k:'wait',ref:i})});
+  pts.forEach(p=>{const who=`${p.name} · UHID ${p.uhid} · ${p.area} bed ${p.bed}`;
+    p.pend.filter(c=>c[1]==='red').forEach(c=>it.push({s:'c',what:c[0],who,m:mins(p.at),owner:ownerFor(c[0]),k:'pt',ref:p.uhid}));
+    const st=mins(p.at);if(st>=180)it.push({s:st>=240?'c':'w',what:st>=240?'Over 4 hours in ER':'Over 3 hours in ER',who,m:st,owner:p.status==='Awaiting bed'?'Operations':'ER doctor',k:'pt',ref:p.uhid});
+    if(p.out){const dm=mins(p.out.decided);
+      if(p.out.kind==='adm'&&dm>=60)it.push({s:dm>=120?'c':'w',what:'Admitted, no bed · '+p.out.dest,who,m:dm,owner:'Operations',k:'pt',ref:p.uhid});
+      if(p.out.kind==='trf'&&dm>=60)it.push({s:'w',what:'Transfer not yet left',who,m:dm,owner:'Operations',k:'pt',ref:p.uhid});
+      if(p.out.kind==='home'&&dm>=60)it.push({s:'w',what:'Discharged but still in ER · '+p.out.bed,who,m:dm,owner:'Operations',k:'pt',ref:p.uhid});}
+    if(p.path)p.path.steps.forEach(stp=>{const c=pathState(p,stp);if(stp[1]==null&&(c==='red'||c==='amb'))it.push({s:c==='red'?'c':'w',what:`${p.path.type[0]+p.path.type.slice(1).toLowerCase()}: ${stp[0]} ${c==='red'?'behind target':'nearing target'} (${stp[2]} min)`,who,m:mins(p.at),owner:'ER doctor',k:'pt',ref:p.uhid})});
+    const um=mins(p.upd);if(um>=60)it.push({s:'w',what:'No update for '+um+' min',who,m:um,owner:p.nurse,k:'pt',ref:p.uhid});
+    if(p.drafts)it.push({s:'w',what:'Dictation not confirmed',who,m:mins(p.upd),owner:p.nurse,k:'pt',ref:p.uhid});});
+  referrals.forEach(r=>{const who=`${r.id} · ${r.name}, ${r.age} ${r.sex} · ${r.from}`;
+    if(r.stage==='awaiting'){const m=mins(r.at);it.push({s:m>=15?'c':'w',what:'Referral not yet accepted',who,m,owner:r.spec,k:'ref',ref:r.id})}
+    if(['accepted','enroute'].includes(r.stage)&&!r.bed)it.push({s:(r.eta!=null&&r.eta<=30)?'c':'w',what:'Incoming referral has no bed',who,m:mins(r.at),owner:'Operations',k:'ref',ref:r.id});});
+  reminders.forEach(x=>it.push({s:'r',what:x.text,who:'Reminder · '+x.by+' · due '+fmtT(x.due),m:Math.max(0,mins(x.due)),owner:'You',k:'none'}));
+  const rank={c:0,w:1,r:2};return it.sort((a,b)=>rank[a.s]-rank[b.s]||b.m-a.m);
+}
+function renderPrio(){
+  const it=buildPrio();const c=it.filter(x=>x.s==='c').length,w=it.filter(x=>x.s==='w').length;
+  main.innerHTML=`<div class="sectitle">Needs attention <span class="c">${c} critical</span><span class="c">${w} warnings</span></div><p style="margin:-4px 0 12px;color:var(--ink2);font-size:13.5px;max-width:760px">Built automatically from what was dictated: nobody types this list. Items leave when the gap is closed, for example when the scan is done or the bed is assigned.</p><div class="plist">${it.map((x,i)=>`<button class="card pitem ${x.s}" data-kind="prio" data-i="${i}"><span class="sev">${x.s==='c'?'CRITICAL':x.s==='w'?'WARNING':'REMINDER'}</span><span style="min-width:0"><div class="what">${esc(x.what)}</div><div class="who">${esc(x.who)}</div></span><span class="el"><b>${x.s==='r'?'—':(x.m>=60?Math.floor(x.m/60)+':'+String(x.m%60).padStart(2,'0'):x.m+'m')}</b><small>${esc(x.owner)}</small></span></button>`).join('')||'<div class="empty">Nothing is late or missing right now.</div>'}</div>`;
+  main._prio=it;
+}
+function render(){
+  renderCensus();
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===tab));
+  if(tab==='triage')renderTriage();else if(tab==='areas')renderAreas();else if(tab==='prio')renderPrio();else renderRef();
+  document.getElementById('clock').textContent=fmtT(NOW());
+}
+
+/* ---------- detail sheet ---------- */
+const root=document.getElementById('sheetRoot');
+function openSheet(html){root.innerHTML=`<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div><button class="close" data-close aria-label="Close">×</button>${html}</div>`;root.querySelector('.close').focus()}
+function emrText(p,ev){const v=p.v;return `ER NOTE · ${p.name} · UHID ${p.uhid} · ${p.age} ${p.sex}
+Arrived ${fmtT(p.at)} · triaged ${p.area} by ${p.nurse} at ${fmtT(p.triT)} · ${p.area} bed ${p.bed}
+Vitals at triage: BP ${v.bp}, HR ${v.hr}, SpO2 ${v.spo2}%, RR ${v.rr}, GCS ${v.gcs}, GRBS ${v.grbs}
+Triage note: ${p.note}
+${p.flags.length?'Alerts: '+p.flags.map(f=>f[1]).join(', ')+'\n':''}Working diagnosis: ${p.dx} · Department: ${p.dept}${p.path?'\nPathway '+p.path.type+': '+p.path.steps.map(st=>st[0]+' '+(st[1]!=null?st[1]+' min':'pending')).join(', '):''}${p.out?'\nDisposition: '+p.out.dest+', decided '+fmtT(p.out.decided):''}
+Course in ER:
+${ev.map(e=>'  '+fmtT(e[0])+'  '+e[1]+(e[2]==='pend'?' (pending)':'')).join('\n')}
+Status at ${fmtT(NOW())}: ${p.status}
+Source: dictated notes, confirmed by the author.`}
+root.addEventListener('click',e=>{
+  if(e.target.closest('[data-close]')){root.innerHTML='';render();return}
+  const b=e.target.closest('[data-copy]');if(!b)return;
+  const p=pts.find(x=>x.uhid===b.dataset.copy);const txt=emrText(p,root._ev||[]);
+  const done=()=>{p.emr=true;b.classList.add('copied');b.textContent='Copied for EMR ✓ · paste into the EMR';};
+  const fallback=()=>{let ta=root.querySelector('.emrtext');if(!ta){ta=document.createElement('textarea');ta.className='emrtext';ta.readOnly=true;b.after(ta)}ta.value=txt;ta.focus();ta.select();p.emr=true;b.textContent='Text selected below · copy it into the EMR'};
+  try{navigator.clipboard.writeText(txt).then(done,fallback)}catch(err){fallback()}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&root.innerHTML){root.innerHTML='';render()}});
+function ptSheet(p){
+  const seen=p.at+ (p.triDur+6)*60000;
+  const ev=[[p.at,'Arrived','done'],[p.triT,`Triaged ${p.area} · ${p.nurse}`,'done']];
+  if(p.status!=='Assessing'||mins(p.at)>10)ev.push([seen,'Seen by ER doctor','done']);
+  p.pend.forEach((c,i)=>ev.push([seen+ (3+i*4)*60000,c[0],c[1]==='grn'?'done':'pend']));
+  if(['Awaiting bed','Ready to leave','Awaiting decision'].includes(p.status))ev.push([NOW()-12*60000,p.status==='Awaiting decision'?'Decision pending':p.status==='Awaiting bed'?'Decision: admit · bed requested':'Decision: discharge',p.status==='Awaiting decision'?'pend':'done']);
+  ev.sort((a,b)=>a[0]-b[0]);
+  openSheet(`<span class="pri ${p.area}">${p.area}</span><h2 style="margin-top:6px">${esc(p.name)}</h2><div class="sub"><span class="uh">UHID ${p.uhid}</span> · ${p.age} ${p.sex} · ${p.area} bed ${p.bed}</div>
+  ${p.flags.length?'<div style="margin-top:10px">'+flagHTML(p)+'</div>':''}${p.path?'<div style="margin-top:8px">'+pathHTML(p)+'</div>':''}
+  <dl class="kv"><dt>Working diagnosis</dt><dd>${esc(p.dx)}</dd>${p.out?`<dt>Going to</dt><dd>${esc(p.out.dest)} · decided ${fmtT(p.out.decided)} · ${esc(p.out.bed)}</dd>`:''}<dt>Department</dt><dd>${esc(p.dept)}</dd><dt>Time in ER</dt><dd>${dur(p.at)} · arrived ${fmtT(p.at)}</dd><dt>Status</dt><dd>${esc(p.status)}</dd></dl>
+  ${vitChips(p.v)}
+  <div class="note" style="margin-top:12px"><div class="lbl">TRIAGE NOTE · DICTATED BY ${esc(p.nurse.toUpperCase())}, CONFIRMED ${fmtT(p.triT)}</div>${esc(p.note)}</div>
+  <ul class="tl">${ev.map(e=>`<li class="${e[2]}"><b>${fmtT(e[0])}</b>${esc(e[1])}${e[2]==='pend'?'<small>pending</small>':''}</li>`).join('')}</ul>
+  <button class="copybtn${p.emr?' copied':''}" data-copy="${p.uhid}">${p.emr?'Copied for EMR ✓ · copy again':'Copy note for EMR'}</button>`);
+  root._ev=ev;
+}
+function waitSheet(x){openSheet(`<h2>${x.tok}</h2><div class="sub">${x.age} ${x.sex} · ${esc(x.how)} · not yet registered</div><dl class="kv"><dt>Complaint</dt><dd>${esc(x.c)}</dd><dt>Arrived</dt><dd>${fmtT(x.at)} · waiting ${mins(x.at)} min</dd><dt>Next</dt><dd>Triage, then name and UHID linked</dd></dl>`)}
+function refSheet(r){
+  const st=STAGES.findIndex(s=>s[0]===r.stage);
+  openSheet(`<span class="uh" style="color:var(--info)">${r.id}</span><h2 style="margin-top:4px">${esc(r.name)}</h2><div class="sub">${r.age} ${r.sex}${r.uhid?' · UHID '+r.uhid:''}</div>
+  <dl class="kv"><dt>From</dt><dd>${esc(r.from)}</dd><dt>Reason</dt><dd>${esc(r.reason)}</dd><dt>Specialty</dt><dd>${esc(r.spec)}</dd><dt>Accepting doctor</dt><dd>${esc(r.doc||'—')}</dd><dt>Transport</dt><dd>${esc(r.trans)}</dd><dt>Expected arrival</dt><dd>${r.eta!=null?'in '+r.eta+' min':'—'}</dd><dt>Bed</dt><dd>${r.bed?'Ready · '+esc(r.bedNo):'Not yet'}</dd><dt>Received</dt><dd>${fmtT(r.at)}</dd></dl>
+  ${r.stage==='declined'?'<div class="note">Declined · '+esc(r.doc)+'</div>':`<ul class="tl">${STAGES.map((s,i)=>`<li class="${i<=st?'done':''}">${s[1]}</li>`).join('')}</ul>`}`);
+}
+main.addEventListener('click',e=>{const c=e.target.closest('.card');if(!c)return;
+  if(c.dataset.kind==='pt')ptSheet(pts.find(p=>p.uhid===c.dataset.u));
+  else if(c.dataset.kind==='wait')waitSheet(waiting[+c.dataset.i]);
+  else if(c.dataset.kind==='ref')refSheet(referrals.find(r=>r.id===c.dataset.id));
+  else if(c.dataset.kind==='prio'){const x=main._prio[+c.dataset.i];if(x.k==='pt')ptSheet(pts.find(p=>p.uhid===x.ref));else if(x.k==='ref')refSheet(referrals.find(r=>r.id===x.ref));else if(x.k==='wait')waitSheet(waiting[x.ref]);}});
+
+/* ---------- tabs ---------- */
+document.querySelector('.tabs').addEventListener('click',e=>{const t=e.target.closest('.tab');if(!t)return;tab=t.dataset.tab;try{localStorage.setItem('edtab',tab)}catch(err){}render();window.scrollTo(0,0)});
+
+/* ---------- demo controls ---------- */
+const demo=document.getElementById('demo'),dt=document.getElementById('demoToggle');
+dt.addEventListener('click',()=>{demo.hidden=!demo.hidden;dt.setAttribute('aria-expanded',!demo.hidden)});
+function toast(m){const t=el(`<div class="toast" role="status">${esc(m)}</div>`);document.body.appendChild(t);setTimeout(()=>t.remove(),2400)}
+const NEW=[['Ravi S',61,'M','Syncope at bus stop','Medicine','P2',{bp:'102/64',hr:48,spo2:96,rr:18,gcs:15,grbs:118},'Collapsed at the bus stop, brief loss of consciousness, now alert. Slow pulse.'],
+ ['Mini Joseph',35,'F','Vomiting, dehydration','Medicine','P3',{bp:'112/72',hr:104,spo2:99,rr:18,gcs:15,grbs:92},'Vomiting since night, unable to keep fluids down.'],
+ ['Abdul Rasheed',70,'M','Breathless, SpO₂ 88','Medicine','P1',{bp:'160/96',hr:124,spo2:88,rr:30,gcs:14,grbs:170},'Breathless since evening, worse lying flat, swollen legs.'],
+ ['Neethu P',24,'F','Fall, wrist pain','Orthopaedics','P3',{bp:'118/74',hr:88,spo2:99,rr:16,gcs:15,grbs:96},'Slipped on wet floor, right wrist swollen and painful.']];
+let ni=0;
+document.getElementById('d-arrive').addEventListener('click',()=>{tokenNo++;const n=NEW[ni%NEW.length];waiting.push({tok:'T-'+tokenNo,age:n[1],sex:n[2],c:n[3],at:NOW(),how:'Walk-in'});toast('T-'+tokenNo+' arrived · waiting for triage');tab='triage';render()});
+document.getElementById('d-triage').addEventListener('click',()=>{
+  if(!waiting.length){toast('Nobody waiting for triage');return}
+  const x=waiting.sort((a,b)=>a.at-b.at).shift();const n=NEW[ni++%NEW.length];
+  const occ=new Set(pts.map(p=>p.bed));const bed=AREAS[n[5]].beds.find(b=>!occ.has(b)&&!bedState[b]);
+  if(!bed){waiting.unshift(x);toast('No free bed in '+n[5]);return}
+  const uh=String(1000+Math.floor(Math.random()*8999))+'-'+String(100+Math.floor(Math.random()*899));
+  pts.push({area:n[5],bed,name:n[0],uhid:uh,age:x.age,sex:x.sex,dx:n[3],at:x.at,status:'Assessing',pend:[],v:n[6],note:n[7],dept:n[4],nurse:nurses[ni%3],triT:NOW(),triDur:0,upd:NOW(),drafts:0,emr:false,flags:[],path:null,out:null});
+  toast(`${x.tok} triaged ${n[5]} · ${n[0]} to bed ${bed}`);render()});
+const NREF=[['Lissy',58,'F','Kolenchery hospital','Acute stroke, in window','Neuro'],['Rajan',66,'M','Aluva hospital','Complete heart block','Cardiology'],['Aswathy',31,'F','Thrissur clinic','Ectopic, ruptured?','Gynaecology']];
+let ri=0,refNo=121;
+document.getElementById('d-ref').addEventListener('click',()=>{const n=NREF[ri++%NREF.length];refNo++;referrals.unshift({id:'R-'+refNo,name:n[0],age:n[1],sex:n[2],from:n[3],reason:n[4],spec:n[5],stage:'received',at:NOW(),eta:null,trans:'Not arranged',bed:false,doc:''});toast('R-'+refNo+' received from '+n[3]);tab='ref';render()});
+document.getElementById('d-adv').addEventListener('click',()=>{
+  const order=['received','awaiting','accepted','enroute'];
+  const r=referrals.filter(r=>order.includes(r.stage)).sort((a,b)=>a.at-b.at)[0];
+  if(!r){toast('No open referrals');return}
+  const nx=order[order.indexOf(r.stage)+1]||'arrived';
+  if(nx==='awaiting')r.doc=r.spec+' on call paged';
+  if(nx==='accepted'){r.doc='Accepted by '+r.spec;r.eta=35;r.trans='Ambulance arranged'}
+  if(nx==='enroute'){r.eta=Math.min(r.eta||30,20);const occ=new Set(pts.map(p=>p.bed));const b=AREAS.P1.beds.concat(AREAS.P2.beds).find(b=>!occ.has(b)&&!bedState[b]);if(b){bedState[b]='res';r.bed=true;r.bedNo=(AREAS.P1.beds.includes(b)?'P1':'P2')+' bed '+b}}
+  if(nx==='arrived'){r.uhid='new · linking';if(r.bedNo){delete bedState[r.bedNo.split(' bed ')[1]]}}
+  r.stage=nx;toast(`${r.id} → ${STAGES.find(s=>s[0]===nx)[1]}`);tab='ref';render()});
+
+render();
+setInterval(()=>{if(!root.innerHTML)render();else{document.getElementById('clock').textContent=fmtT(NOW())}},30000);
+})();
+</script>
