@@ -5203,6 +5203,86 @@ async function persistRecord(record, changes){
   await setDoc(noteDocRef(record),changes,{merge:true});
 }
 
+function firstDashboardMatch(text, patterns){
+  for (const pattern of patterns){
+    const match = String(text || '').match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return '';
+}
+
+function dashboardLines(text){
+  return String(text || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+}
+
+function dashboardPatientKey(record){
+  const patient = record?.patientData || {};
+  return String(patient.uhid || patient.asterId || patient.ipNo || record?.uhid || '').trim();
+}
+
+function dashboardVital(text, labelPatterns){
+  const escaped = labelPatterns.join('|');
+  const value = firstDashboardMatch(text, [
+    new RegExp(`\\b(?:${escaped})\\s*[:\\-]?\\s*([0-9]{1,3}(?:\\/[0-9]{1,3})?)`, 'i')
+  ]);
+  return value || '';
+}
+
+function dashboardPriority(record, text){
+  const source = `${record?.patientData?.priority || ''}\n${text || ''}`;
+  const match = source.match(/\b(P[1-3])\b/i);
+  return match ? match[1].toUpperCase() : 'P3';
+}
+
+function dashboardPendingTasks(text){
+  return dashboardLines(text)
+    .filter(line => /\b(pending|awaiting|ordered|for |to be done|not done|review|repeat|ct|mri|usg|x-?ray|lab|culture|bed|admission|transfer)\b/i.test(line))
+    .slice(0, 6);
+}
+
+function buildDashboardMetadata(record, role = 'doctor'){
+  const text = record?.transcription || '';
+  const patient = patientDataWithFallback(record?.patientData || patientIdentity(record));
+  const doctorCredential = doctorCredentialFromProfile(ownerProfiles[currentUser?.uid] || {});
+  const authorName = doctorCredential?.name || displayCredentialName(ownerProfiles[currentUser?.uid]?.credentialName) || currentUser?.email || '';
+  const location = String(record?.patientData?.location || '').trim();
+  const bed = firstDashboardMatch(location, [/\bbed\s*[:\-]?\s*([A-Za-z0-9/-]+)/i, /\b(?:P[1-3]|ER|ED)\s*(?:bed)?\s*([A-Za-z0-9/-]+)/i]);
+  return {
+    role,
+    authorName,
+    authorId:doctorCredential?.employeeId || '',
+    sourceMode:String(record?.selectedMode || record?.heading || 'Visit note').trim(),
+    patientKey:dashboardPatientKey(record),
+    patientName:patient.name,
+    uhid:patient.uhid,
+    age:patient.age,
+    sex:patient.sex,
+    visitType:record?.visitType || selectedVisitType || 'OP',
+    visitDate:record?.visitDate || dateInputValue(selectedVisitDate),
+    priority:dashboardPriority(record, text),
+    area:firstDashboardMatch(location, [/\b(P[1-3])\b/i, /\b(ER|ED|ICU|MICU|CCU)\b/i]) || '',
+    bed,
+    complaint:firstDashboardMatch(text, [/Presenting Complaint\s*:\s*([^\n]+)/i, /Chief Complaints?\s*:\s*([^\n]+)/i, /History of Present Illness\s*:\s*([^\n]+)/i]),
+    diagnosis:firstDashboardMatch(text, [/Final Diagnosis\s*:\s*([^\n]+)/i, /Provisional Diagnosis\s*:\s*([^\n]+)/i, /Diagnosis\s*:\s*([^\n]+)/i]),
+    disposition:firstDashboardMatch(text, [/Disposition\s*:\s*([^\n]+)/i, /Condition at Discharge\s*:\s*([^\n]+)/i, /Advice on Discharge\s*:\s*([^\n]+)/i]),
+    vitals:{
+      bp:dashboardVital(text, ['BP', 'Blood pressure']),
+      hr:dashboardVital(text, ['HR', 'Pulse', 'Heart rate']),
+      spo2:dashboardVital(text, ['SpO2', 'SpO₂', 'Saturation']),
+      rr:dashboardVital(text, ['RR', 'Respiratory rate']),
+      gcs:dashboardVital(text, ['GCS']),
+      grbs:dashboardVital(text, ['GRBS', 'RBS', 'Sugar'])
+    },
+    pendingTasks:dashboardPendingTasks(text),
+    isDraft:record?.isDraft === true,
+    voiceDraft:record?.voiceDraft === true
+  };
+}
+
 function showToast(message){
   console.warn(message);
 }
@@ -5234,6 +5314,7 @@ async function saveOpAllEntries(){
       everSaved:true,
       transcription:record.transcription,
       patientData:record.patientData,
+      dashboard:buildDashboardMetadata(record, 'doctor'),
       selectedMode:record.selectedMode,
       visitDate:record.visitDate || dateInputValue(selectedVisitDate),
       visitType:record.visitType,
@@ -7103,6 +7184,7 @@ async function stopAndTranscribe(){
       everSaved:true,
       transcription:draft.transcription,
       patientData:draft.patientData,
+      dashboard:buildDashboardMetadata(draft, 'doctor'),
       selectedMode:draft.selectedMode,
       visitDate:draft.visitDate,
       visitType:draftVisitType,
@@ -7649,6 +7731,7 @@ async function finishNewVoiceDraft(audioBlob, apiKey, onRetry){
     everSaved:true,
     transcription:draft.transcription,
     patientData:draft.patientData,
+    dashboard:buildDashboardMetadata(draft, 'doctor'),
     selectedMode:draft.selectedMode,
     visitDate:selectedDateString,
     visitType:draftVisitType,
@@ -8120,6 +8203,7 @@ function mergeAddOnTextIntoRecord(record, addOnText){
   persistRecord(record,{
     transcription:record.transcription,
     patientData:record.patientData,
+    dashboard:buildDashboardMetadata(record, 'doctor'),
     saved:false,
     updatedAt:serverTimestamp()
   }).catch(error => {
@@ -8163,6 +8247,7 @@ function appendTextToRecord(record, text, {review = false} = {}){
   persistRecord(record,{
     transcription:record.transcription,
     patientData:record.patientData,
+    dashboard:buildDashboardMetadata(record, 'doctor'),
     saved:false,
     updatedAt:serverTimestamp()
   }).catch(error => {
@@ -9782,8 +9867,8 @@ dischargeBtn.addEventListener('click', async () => {
   updateDischargeButton(record);
   try{
     const changes = wasDischarged
-      ? {dischargeDate:null, dischargedBy:null, dischargedAt:null, updatedAt:serverTimestamp()}
-      : {dischargeDate:selectedDateString, dischargedBy:currentUser.uid, dischargedAt:serverTimestamp(), updatedAt:serverTimestamp()};
+      ? {dischargeDate:null, dischargedBy:null, dischargedAt:null, dashboard:buildDashboardMetadata(record, 'doctor'), updatedAt:serverTimestamp()}
+      : {dischargeDate:selectedDateString, dischargedBy:currentUser.uid, dischargedAt:serverTimestamp(), dashboard:buildDashboardMetadata(record, 'doctor'), updatedAt:serverTimestamp()};
     await persistRecord(record,changes);
     renderEntries();
   }catch(error){
@@ -10266,6 +10351,7 @@ saveDraftBtn.addEventListener('click', async () => {
     everSaved:true,
     transcription:draft.transcription,
     patientData:draft.patientData,
+    dashboard:buildDashboardMetadata(draft, 'doctor'),
     selectedMode:draft.selectedMode,
     visitDate:persistedVisitDate,
     visitType:draft.visitType,

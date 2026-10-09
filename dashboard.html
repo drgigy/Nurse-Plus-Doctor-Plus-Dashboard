@@ -156,6 +156,14 @@ main{padding:14px 16px 40px;padding-bottom:calc(40px + env(safe-area-inset-botto
 .demo button{appearance:none;border:0;border-radius:8px;padding:10px 12px;background:#2C3554;color:#fff;font-weight:600;font-size:14px;text-align:left;cursor:pointer;min-height:44px}
 .demo button:active{background:#3A4670}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:30}
+.authbox{max-width:420px;margin:48px auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:0 12px 30px rgba(20,26,46,.08)}
+.authbox h1{font-family:var(--head);font-size:24px;margin:0 0 6px}
+.authbox p{color:var(--ink2);margin:0 0 16px}
+.authbox label{display:block;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);margin:12px 0 5px}
+.authbox input{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:12px;font:15px var(--body);outline:none}
+.authbox input:focus{border-color:var(--info);box-shadow:0 0 0 3px var(--infos)}
+.authbox button{appearance:none;border:0;background:var(--ink);color:#fff;border-radius:8px;padding:12px 16px;font-weight:800;margin-top:16px;min-height:44px;cursor:pointer;width:100%}
+.autherr{color:var(--p1);font-size:13px;margin-top:10px;min-height:18px}
 @media (max-width:980px){
   .tri-grid{grid-template-columns:minmax(0,1fr)}
   .ref{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -199,8 +207,17 @@ main{padding:14px 16px 40px;padding-bottom:calc(40px + env(safe-area-inset-botto
 </div>
 <div id="sheetRoot"></div>
 
-<script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js';
+import { browserLocalPersistence, getAuth, onAuthStateChanged, setPersistence, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
+import { collectionGroup, getFirestore, onSnapshot, query } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+import { firebaseConfig } from './firebase-config.js';
+
 (function(){
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+setPersistence(auth, browserLocalPersistence).catch(error => console.warn('Auth persistence failed:', error));
 const NOW=()=>Date.now();
 const ago=m=>NOW()-m*60000;
 const fmtT=t=>{const d=new Date(t);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
@@ -254,6 +271,162 @@ const OUT={'5530-118':{kind:'adm',dest:'Cath lab → CCU',decided:ago(14),bed:'C
  '3021-776':{kind:'home',dest:'Home',decided:ago(25),bed:'Summary ready · medicines given'},'7395-044':{kind:'home',dest:'Home',decided:ago(70),bed:'Waiting for billing'},'2049-650':{kind:'home',dest:'Home',decided:ago(30),bed:'Waiting for wheelchair'}};
 pts.forEach(p=>{p.flags=FLAGS[p.uhid]||[];p.path=PATHS[p.uhid]||null;p.out=OUT[p.uhid]||null});
 pts.find(p=>p.uhid==='5521-308').status='Awaiting transfer';
+let liveUnsubscribe = null;
+function timestampMillis(value){
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function firstTextLine(value){
+  return String(value || '').replace(/\r\n/g, '\n').split('\n').map(line => line.trim()).find(Boolean) || '';
+}
+function patientKeyForNote(data, id){
+  const patient = data.patientData || {};
+  const dash = data.dashboard || {};
+  return String(dash.patientKey || patient.uhid || patient.asterId || patient.ipNo || data.uhid || id || '').trim();
+}
+function noteMillis(data){
+  return timestampMillis(data.updatedAt) || timestampMillis(data.userSavedAt) || timestampMillis(data.createdAt) || NOW();
+}
+function bestPriority(notes){
+  if (notes.some(note => note.dashboard?.priority === 'P1')) return 'P1';
+  if (notes.some(note => note.dashboard?.priority === 'P2')) return 'P2';
+  return 'P3';
+}
+function bestValue(notes, getter){
+  for (const note of notes){
+    const value = getter(note);
+    if (value && !/^nil$/i.test(String(value))) return value;
+  }
+  return '';
+}
+function mergeVitals(notes){
+  return {
+    bp:bestValue(notes, note => note.dashboard?.vitals?.bp) || '—',
+    hr:Number(bestValue(notes, note => note.dashboard?.vitals?.hr)) || 80,
+    spo2:Number(bestValue(notes, note => note.dashboard?.vitals?.spo2)) || 98,
+    rr:Number(bestValue(notes, note => note.dashboard?.vitals?.rr)) || 16,
+    gcs:Number(bestValue(notes, note => note.dashboard?.vitals?.gcs)) || 15,
+    grbs:Number(bestValue(notes, note => note.dashboard?.vitals?.grbs)) || 100
+  };
+}
+function fallbackBed(index, area){
+  const beds = AREAS[area]?.beds || AREAS.P3.beds;
+  return beds[index % beds.length] || String(index + 1);
+}
+function livePatientFromNotes(key, notes, index){
+  const sorted = notes.slice().sort((a,b)=>noteMillis(b)-noteMillis(a));
+  const latest = sorted[0] || {};
+  const earliest = sorted[sorted.length - 1] || latest;
+  const dash = latest.dashboard || {};
+  const patient = latest.patientData || {};
+  const area = dash.priority || bestPriority(sorted);
+  const nurseNote = sorted.find(note => note.dashboard?.role === 'nurse') || latest;
+  const doctorNote = sorted.find(note => note.dashboard?.role === 'doctor') || latest;
+  const pending = Array.from(new Set(sorted.flatMap(note => note.dashboard?.pendingTasks || []))).slice(0, 6);
+  const isDraft = sorted.some(note => note.isDraft || note.dashboard?.isDraft);
+  const dischargeNote = sorted.find(note => note.dischargeDate || /discharg/i.test(note.dashboard?.disposition || ''));
+  const updated = noteMillis(latest);
+  const arrived = timestampMillis(earliest.createdAt) || updated;
+  return {
+    area,
+    bed:dash.bed || fallbackBed(index, area),
+    name:dash.patientName || patient.name || 'Unnamed patient',
+    uhid:dash.uhid || patient.uhid || key,
+    age:dash.age || patient.age || 'NIL',
+    sex:dash.sex || patient.sex || 'NIL',
+    dx:dash.diagnosis || doctorNote.dashboard?.diagnosis || nurseNote.dashboard?.complaint || firstTextLine(latest.transcription) || 'No diagnosis recorded',
+    at:arrived,
+    status:dischargeNote ? 'Ready to leave' : (isDraft ? 'Draft pending confirmation' : 'Updated'),
+    pend:pending.map((task, taskIndex) => [task, /late|not|pending|awaiting|no bed/i.test(task) ? 'amb' : (taskIndex ? 'blu' : 'amb')]),
+    v:mergeVitals(sorted),
+    note:nurseNote.dashboard?.complaint || firstTextLine(nurseNote.transcription) || firstTextLine(latest.transcription) || 'No note text yet.',
+    dept:doctorNote.dashboard?.authorName || doctorNote.dashboard?.sourceMode || 'Doctor',
+    nurse:nurseNote.dashboard?.authorName || nurseNote.dashboard?.sourceMode || 'Nurse',
+    triT:timestampMillis(nurseNote.createdAt) || arrived,
+    triDur:0,
+    upd:updated,
+    drafts:isDraft ? 1 : 0,
+    emr:false,
+    flags:[],
+    path:null,
+    out:dischargeNote ? {kind:'home',dest:'Home / discharge',decided:timestampMillis(dischargeNote.updatedAt) || updated,bed:'Discharge documented'} : null,
+    notes:sorted
+  };
+}
+function applyLiveNotes(snapshotDocs){
+  const groups = new Map();
+  snapshotDocs.forEach(snapshot => {
+    const data = snapshot.data();
+    if (data.deleted || data.voiceDraft) return;
+    const key = patientKeyForNote(data, snapshot.id);
+    if (!key) return;
+    const note = {...data, id:snapshot.id};
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(note);
+  });
+  waiting.splice(0, waiting.length);
+  referrals.splice(0, referrals.length);
+  reminders.splice(0, reminders.length);
+  Object.keys(bedState).forEach(key => delete bedState[key]);
+  const livePatients = Array.from(groups.entries())
+    .map(([key, notes], index) => livePatientFromNotes(key, notes, index))
+    .sort((a,b)=>b.upd-a.upd);
+  pts.splice(0, pts.length, ...livePatients);
+}
+function showDashboardAuth(message = ''){
+  dashboardReady = false;
+  document.getElementById('census').innerHTML = '';
+  main.innerHTML = `<form class="authbox" id="dashboardLogin">
+    <h1>Dashboard sign in</h1>
+    <p>Use a Firebase account marked in <strong>masterAdmins</strong> to view live doctor and nurse notes.</p>
+    <label for="dashEmail">Email</label>
+    <input id="dashEmail" type="email" autocomplete="email" required>
+    <label for="dashPassword">Password</label>
+    <input id="dashPassword" type="password" autocomplete="current-password" required>
+    <button type="submit">Sign in</button>
+    <div class="autherr">${esc(message)}</div>
+  </form>`;
+  document.getElementById('dashboardLogin')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    form.querySelector('button').disabled = true;
+    try{
+      await signInWithEmailAndPassword(auth, form.dashEmail.value.trim(), form.dashPassword.value);
+    }catch(error){
+      showDashboardAuth('Unable to sign in or read dashboard notes.');
+    }
+  });
+}
+function startLiveDashboard(){
+  if (liveUnsubscribe) liveUnsubscribe();
+  document.getElementById('fresh').textContent = 'Loading';
+  liveUnsubscribe = onSnapshot(query(collectionGroup(db, 'notes')), snapshot => {
+    applyLiveNotes(snapshot.docs);
+    dashboardReady = true;
+    document.getElementById('fresh').textContent = snapshot.empty ? 'No data' : 'Live';
+    render();
+  }, error => {
+    console.error('Dashboard live query failed:', error);
+    document.getElementById('fresh').textContent = 'Blocked';
+    showDashboardAuth('Dashboard access denied. Add this account UID to masterAdmins in Firestore.');
+  });
+}
+function bootDashboard(){
+  document.getElementById('demoToggle').hidden = true;
+  onAuthStateChanged(auth, user => {
+    if (!user){
+      dashboardReady = false;
+      if (liveUnsubscribe) liveUnsubscribe();
+      liveUnsubscribe = null;
+      showDashboardAuth();
+      return;
+    }
+    startLiveDashboard();
+  });
+}
 function flagHTML(p){return p.flags.length?`<div class="flags">${p.flags.map(f=>`<span class="flag ${f[0]}">${esc(f[1])}</span>`).join('')}</div>`:''}
 function pathState(p,st){const el=mins(p.at);if(st[1]!=null)return st[1]<=st[2]?'ok':'red';return el>st[2]?'red':el>=st[2]*0.75?'amb':''}
 function pathHTML(p){if(!p.path)return '';return `<div class="path"><span class="pn">${p.path.type}</span>${p.path.steps.map(st=>{const c=pathState(p,st);return `<span class="ps ${c}">${esc(st[0])} ${st[1]!=null?st[1]+' min'+(c==='ok'?' ✓':''):mins(p.at)+'/'+st[2]+' min'}</span>`}).join('')}</div>`}
@@ -270,6 +443,7 @@ const STAGES=[['received','Received'],['awaiting','Awaiting acceptance'],['accep
 
 /* ---------- state ---------- */
 let tab='triage';
+let dashboardReady = false;
 try{const s=localStorage.getItem('edtab');if(s)tab=s}catch(e){}
 const main=document.getElementById('main');
 
@@ -454,7 +628,7 @@ document.getElementById('d-adv').addEventListener('click',()=>{
   if(nx==='arrived'){r.uhid='new · linking';if(r.bedNo){delete bedState[r.bedNo.split(' bed ')[1]]}}
   r.stage=nx;toast(`${r.id} → ${STAGES.find(s=>s[0]===nx)[1]}`);tab='ref';render()});
 
-render();
-setInterval(()=>{if(!root.innerHTML)render();else{document.getElementById('clock').textContent=fmtT(NOW())}},30000);
+bootDashboard();
+setInterval(()=>{if(!dashboardReady)return;if(!root.innerHTML)render();else{document.getElementById('clock').textContent=fmtT(NOW())}},30000);
 })();
 </script>
